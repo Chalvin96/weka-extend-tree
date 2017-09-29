@@ -16,6 +16,7 @@ public class C45 extends Classifier {
     private double eps = 10e-7;
     private boolean isLeaf = false;
 
+
     public void buildClassifier(Instances data) throws Exception {
 
         makeTree(data);
@@ -41,7 +42,12 @@ public class C45 extends Classifier {
             ClassValue = mostCommonClass(data);
         } else{
             decision_attribute = att_with_max_info_gain;
+            //to be used on pruning
+            ClassValue = mostCommonClass(data);
+
             son = new C45[data.numDistinctValues(decision_attribute)];
+
+
 
             Instances[] splitedData = splitData(data,decision_attribute);
 
@@ -60,7 +66,7 @@ public class C45 extends Classifier {
         }
     }
 
-    
+
 
     @Override
     public double classifyInstance(Instance record) {
@@ -72,6 +78,28 @@ public class C45 extends Classifier {
         }
     }
 
+    public void prune(Instances data, C45 root) throws Exception{
+        if(isLeaf == true){
+            return;
+        }
+
+        for(int i=0; i<son.length; i++){
+            son[i].prune(data,root);
+        }
+
+        Evaluation eval = new Evaluation(data);
+        eval.evaluateModel(root, data);
+
+        double before_pruning_error = eval.errorRate();
+
+        isLeaf = true;
+        eval.evaluateModel(root, data);
+        double after_pruning_error  = eval.errorRate();
+
+        if(after_pruning_error > before_pruning_error){
+            isLeaf = false;
+        }
+    }
 
 
     private double mostCommonClass(Instances data){
@@ -116,6 +144,8 @@ public class C45 extends Classifier {
         return res;
 
     }
+
+
 
     private double getGainRatio(Instances data, Attribute att) throws Exception {
         return getInfoGain(data,att) /SplitInformation(data,att) ;
