@@ -60,6 +60,8 @@ public class C45 extends Classifier {
         }
     }
 
+    
+
     @Override
     public double classifyInstance(Instance record) {
         if(isLeaf == true){
@@ -114,6 +116,27 @@ public class C45 extends Classifier {
         return res;
 
     }
+
+    private double getGainRatio(Instances data, Attribute att) throws Exception {
+        return getInfoGain(data,att) /SplitInformation(data,att) ;
+    }
+
+    private double SplitInformation(Instances data, Attribute att) throws Exception {
+        double attCount[] = new double[data.numAttributes()];
+        Enumeration instEnum = data.enumerateInstances();
+        while (instEnum.hasMoreElements()) {
+            Instance inst = (Instance) instEnum.nextElement();
+            attCount[(int) inst.value(att)]++;
+        }
+
+        double result = 0.0;
+        for (int i=0; i<data.numAttributes(); i++){
+            result -= attCount[i]/data.numInstances() * Utils.log2(attCount[i]/data.numInstances())
+        }
+
+        return result;
+    }
+
 
     private double getInfoGain(Instances data, Attribute att)
             throws Exception {
