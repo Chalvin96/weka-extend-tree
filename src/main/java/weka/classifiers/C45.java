@@ -161,7 +161,7 @@ public class C45 extends Classifier {
 
         double result = 0.0;
         for (int i=0; i<data.numAttributes(); i++){
-            result -= attCount[i]/data.numInstances() * Utils.log2(attCount[i]/data.numInstances())
+            result -= attCount[i]/data.numInstances() * Utils.log2(attCount[i]/data.numInstances());
         }
 
         return result;
