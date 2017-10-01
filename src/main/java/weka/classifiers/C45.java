@@ -1,11 +1,9 @@
 package weka.classifiers;
 
-import weka.core.Attribute;
-import weka.core.Instance;
-import weka.core.Instances;
-import weka.core.Utils;
+import weka.core.*;
 
 import java.util.Enumeration;
+import java.util.Vector;
 
 public class C45 extends Classifier {
 
@@ -52,7 +50,6 @@ public class C45 extends Classifier {
             Instances[] splitedData = splitData(data,decision_attribute);
 
 
-            System.out.println("Dictinct Value : ");
             for(int i=0; i< data.numDistinctValues(decision_attribute); i++){
                 son[i] = new C45();
                 if( splitedData[i].numInstances() > 0) {
@@ -101,6 +98,30 @@ public class C45 extends Classifier {
         }
     }
 
+    private double mostCommonTargetValue(Instances data, Attribute att){
+        int targetCount[] = new int[data.numDistinctValues(att)];
+        Enumeration instEnum = data.enumerateInstances();
+
+
+        while (instEnum.hasMoreElements()) {
+            Instance inst = (Instance) instEnum.nextElement();
+
+            targetCount[(int) inst.value(att)]++;
+        }
+
+        int idx = -1;
+        int max = -1;
+
+        for (int i=0;i < data.numDistinctValues(att); i++){
+            if ( !(att.value(i) == "?") && targetCount[i] > max){
+                max = targetCount[i];
+                idx = i;
+            }
+        }
+
+        return (double) idx;
+
+    }
 
     private double mostCommonClass(Instances data){
         int classCount[] = new int[data.numClasses()];
@@ -138,12 +159,37 @@ public class C45 extends Classifier {
         Enumeration instEnum = data.enumerateInstances();
         while (instEnum.hasMoreElements()) {
             Instance inst = (Instance) instEnum.nextElement();
+            if(inst.value(att) < 0)
+                System.out.println(inst.value(att));
             res[(int) inst.value(att)].add(inst);
         }
 
         return res;
 
     }
+
+    private Instances[] splitDataWithMissingValueHandle(Instances data, Attribute att){
+
+        Instances[] res = new Instances[att.numValues()];
+        double mostCommonTargetValue = mostCommonTargetValue(data,att);
+
+        for (int i=0; i<att.numValues(); i++){
+            res[i] = new Instances(data, data.numInstances());
+        }
+
+        Enumeration instEnum = data.enumerateInstances();
+        while (instEnum.hasMoreElements()) {
+            Instance inst = (Instance) instEnum.nextElement();
+            if(inst.stringValue(att) == "?")
+                res[(int) mostCommonTargetValue].add(inst);
+            else
+                res[(int) inst.value(att)].add(inst);
+        }
+
+        return res;
+
+    }
+
 
 
 
@@ -172,7 +218,8 @@ public class C45 extends Classifier {
             throws Exception {
 
         double infoGain = getEntropy(data);
-        Instances[] splitData = splitData(data, att);
+        Instances[] splitData = splitDataWithMissingValueHandle(data, att);
+
         for (int j = 0; j < att.numValues(); j++) {
             if (splitData[j].numInstances() > 0) {
                 infoGain -= ((double) splitData[j].numInstances() /
@@ -197,6 +244,109 @@ public class C45 extends Classifier {
             }
         }
         return entropy;
+    }
+
+    private Vector<Integer> getNumericAttributeIndex(Instances inst) {
+        Vector<Integer> v = new Vector<Integer>();
+        for (int i = 0; i < inst.numAttributes(); i++) {
+            if (inst.attribute(i).isNumeric()) {
+                v.add(i);
+            }
+        }
+        return v;
+    }
+
+    private Instances[] splitData(Instances data, int att, double threshold){
+        Instances[] res = new Instances[2];
+
+        for (int i=0; i<2; i++){
+            res[i] = new Instances(data, data.numInstances());
+        }
+
+//        Enumeration instEnum = data.enumerateInstances();
+//        while (instEnum.hasMoreElements()) {
+//            Instance inst = (Instance) instEnum.nextElement();
+//            res[(int) inst.value(att)].add(inst);
+//        }
+        for (int i = 0; i < data.numInstances(); i++) {
+            if (data.instance(i).value(att) > threshold) {
+                res[1].add(data.instance(i));
+            }
+            else {
+                res[0].add(data.instance(i));
+            }
+        }
+
+        return res;
+
+    }
+
+    private double getInfoGain(Instances data, int att, double threshold)
+            throws Exception {
+
+        double infoGain = getEntropy(data);
+        Instances[] splitData = splitData(data, att, threshold);
+        for (int j = 0; j < 2; j++) {
+            if (splitData[j].numInstances() > 0) {
+                infoGain -= ((double) splitData[j].numInstances() /
+                        (double) data.numInstances()) *
+                        getEntropy(splitData[j]);
+            }
+        }
+        return infoGain;
+    }
+
+    public Instances handleContinuousAttribute(Instances inst) throws Exception{
+        Vector<Integer> v = getNumericAttributeIndex(inst);
+        for (int i = 0; i < v.size(); i++) {
+            inst.sort(v.get(i));
+            double currentClassValue = inst.instance(0).classValue();
+            Vector<Double> d = new Vector<Double>(0);
+            for (int j = 1; j < inst.numInstances(); j++) {
+                if (inst.instance(j).classValue()!=currentClassValue) {
+                    if (d.size()<10) {
+                        d.add((inst.instance(j).value(v.get(i)) + inst.instance(j - 1).value(v.get(i))) / 2.0);
+                    }
+                    currentClassValue = inst.instance(j).classValue();
+                }
+            }
+
+            double threshold = d.get(0);
+
+            for (int j = 1; j < d.size(); j++) {
+                //cari information gain max
+                //dapet angka threshold
+                if (getInfoGain(inst, v.get(i), d.get(j)) > getInfoGain(inst, v.get(i), d.get(j-1))) {
+                    threshold = d.get(i);
+                }
+
+            }
+//
+//            List<String> l;
+//            l.add("0");
+//            l.add("1");
+
+            FastVector values = new FastVector(); /* FastVector is now deprecated. Users can use any java.util.List */
+            values.addElement("0");               /* implementation now */
+            values.addElement("1");
+            inst.insertAttributeAt(new Attribute(inst.attribute(v.get(i)).name()+"new", values), inst.numAttributes());
+            for (int j = 0; j < inst.numInstances(); j++) {
+                //ganti nilai atribut
+                //pake instance.setValue
+                if (inst.instance(j).value(v.get(i)) > threshold) {
+                    inst.instance(j).setValue(inst.numAttributes()-1, "1");
+                }
+                else {
+                    inst.instance(j).setValue(inst.numAttributes()-1, "0");
+                }
+            }
+        }
+
+        for (int i = 0; i < v.size(); i++) {
+            inst.deleteAttributeAt(v.get(i)-i);
+        }
+
+        return inst;
     }
 
 }
